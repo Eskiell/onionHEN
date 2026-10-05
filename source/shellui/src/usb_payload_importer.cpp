@@ -162,17 +162,9 @@ ImportResult import_payload(const Entry &entry, const std::string &destination,
   if (result == ImportResult::Completed && !replace &&
       lstat(final_path.c_str(), &destination_stat) == 0)
     result = ImportResult::DestinationAlreadyExists;
-  if (result == ImportResult::Completed) {
-    if (replace) {
-      if (rename(temp_path.c_str(), final_path.c_str()) != 0)
-        result = ImportResult::RenameError;
-    } else if (link(temp_path.c_str(), final_path.c_str()) != 0) {
-      result = errno == EEXIST ? ImportResult::DestinationAlreadyExists
-                               : ImportResult::RenameError;
-    } else {
-      (void)unlink(temp_path.c_str());
-    }
-  }
+  if (result == ImportResult::Completed &&
+      rename(temp_path.c_str(), final_path.c_str()) != 0)
+    result = ImportResult::RenameError;
   if (result != ImportResult::Completed)
     unlink(temp_path.c_str());
   return result;
