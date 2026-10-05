@@ -48,22 +48,21 @@ bool model(ps5ui::Node &root) {
     const std::string index = std::to_string(i);
     const std::string source = "usb" + std::to_string(entry.usb_index);
     const std::string detail =
-        source + " · " + size_text(entry.size) + " · " +
+        std::string(toolbox_i18n::tr(entry.installed ? "usb_payloads.replace"
+                                                     : "usb_payloads.import")) +
+        " · " + source + " · " + size_text(entry.size) + " · " +
         toolbox_i18n::tr(entry.installed ? "usb_payloads.installed"
                                          : "usb_payloads.not_installed");
-    page.label("id_usb_payload_name_" + index, entry.name)
-        .button("id_usb_payload_" +
-                    std::string(entry.installed ? "replace_" : "import_") +
-                    index,
-                toolbox_i18n::tr(entry.installed ? "usb_payloads.replace"
-                                                 : "usb_payloads.import"),
-                detail, std::nullopt, std::nullopt, ps5ui::Style::None,
-                entry.installed ? std::optional<std::string>(toolbox_i18n::tr(
-                                      "usb_payloads.replace_confirm"))
-                                : std::nullopt,
-                entry.installed ? std::optional<std::string>(toolbox_i18n::tr(
-                                      "usb_payloads.confirm_phrase"))
-                                : std::nullopt);
+    page.button(
+        "id_usb_payload_" +
+            std::string(entry.installed ? "replace_" : "import_") + index,
+        entry.name, detail, std::nullopt, std::nullopt, ps5ui::Style::None,
+        entry.installed ? std::optional<std::string>(
+                              toolbox_i18n::tr("usb_payloads.replace_confirm"))
+                        : std::nullopt,
+        entry.installed ? std::optional<std::string>(
+                              toolbox_i18n::tr("usb_payloads.confirm_phrase"))
+                        : std::nullopt);
   }
   page.button("id_usb_payload_refresh",
               toolbox_i18n::tr("usb_payloads.refresh"));
