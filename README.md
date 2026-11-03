@@ -69,8 +69,9 @@ OnionHEN is a practical homebrew stack for jailbroken PS5 consoles.
 - **ShadowMount+** — available as the optional external `onionHEN-shadowmountplus-plugin`
 - **Remote Play pairing** — enable the native PS5 Remote Play service, generate a pairing PIN, and register a client from the Network section
 - **User payload manager** — start and stop user-provided `.elf` payloads, with optional auto-start
+- **Custom PKG Installer** — scan up to eight configured `/data` or `/mnt` folders for PS4 PKG files and submit them to the system installer
 - **Game overlay** — an in-game bar for FPS, CPU, GPU, RAM, temperatures, and network info
-- **Cheat engine** — local JSON, SHN, MC4, and ShnExt files that can be toggled at runtime
+- **Cheat engine** — local JSON, SHN, MC4, ShnExt, and Illusion PS-Game-Patch XML files that can be toggled at runtime
 - **DPI v2** — available as the optional external `onionHEN-dpiv2-plugin`
 - **Console tools** — account activation, external HDD, Title IDs, fan control, shortcuts, and game options
 - **App jailbreak** — allowlisted homebrew can ask the daemon for extra privileges through a sandbox FIFO
@@ -174,13 +175,52 @@ optional process and 8-hex source ID:
 /data/OnionHEN/cheats/<TITLE_ID>_<VERSION>[_<PROCESS>][_<SOURCE_ID>].shn
 /data/OnionHEN/cheats/<TITLE_ID>_<VERSION>[_<PROCESS>][_<SOURCE_ID>].mc4
 /data/OnionHEN/cheats/<TITLE_ID>_<VERSION>[_<PROCESS>][_<SOURCE_ID>].ShnExt
+/data/OnionHEN/cheats/<TITLE_ID>_<VERSION>.xml
+/data/OnionHEN/cheats/<TITLE_ID>.xml
 ```
 
 `PROCESS` is optional. `SOURCE_ID` is a stable physical-source discriminator.
 OnionHEN loads every compatible source for the title/version/process, so
-independent JSON, SHN, MC4 and ShnExt files can coexist. A source with an
-explicit process is only used for that process; a source without one is
+independent JSON, SHN, MC4, ShnExt, and Illusion XML files can coexist. A source
+with an explicit process is only used for that process; a source without one is
 generic.
+
+Illusion PS-Game-Patch XML files use the active title ID and version to select
+matching `TitleID` and `AppVer` metadata; comma-separated versions and
+`AppVer="mask"` are accepted. Put upstream files in
+`/data/OnionHEN/cheats/` with their `<TITLE_ID>.xml` names, or use the local
+`<TITLE_ID>_<VERSION>.xml` form. XML catalogs are not downloaded by
+`DOWNLOAD_CHEATS`. Direct addresses are resolved relative to the
+metadata's `ImageBase` (default `0x00400000`) and then to its `AppElf` module.
+The direct types `byte`, `bytes16`, `bytes32`, `bytes64`, `bytes`, `float32`,
+`float64`, `utf8`, and `utf16` are supported; `bytes` values may contain up to
+255 bytes. Pattern types `mask` and `mask_jump32` use two-digit hex byte pairs.
+Use `?` or `??` for wildcards; whitespace between pairs is optional. Both types
+accept a signed `Offset` from the match start. `mask` must resolve uniquely in
+readable module ranges. For `mask_jump32`, both the source pattern and exact
+`Target` code-cave signature must resolve uniquely in executable ranges, and
+both write ranges must remain executable. Its optional `Size` (minimum 5,
+default 5) controls the branch and NOP padding. If a pattern or target is
+missing or ambiguous, the entry is not applied. Disabling one-way patches
+restores the bytes captured when they were enabled; if live bytes changed,
+OnionHEN refuses to overwrite them.
+Integer line values accept decimal numbers or hexadecimal values prefixed with
+`0x`, `#`, or `$`; values outside the selected type's width are rejected.
+String values support the format's `\n`, `\t`, `\r`, `\0`, `\\`, and
+`\xHH` escapes.
+
+For example, a `CUSA00001_01.00.xml` file can contain:
+
+```xml
+<Patch>
+  <TitleID><ID>CUSA00001</ID></TitleID>
+  <Metadata Name="Example 60 FPS" AppVer="01.00" AppElf="eboot.bin">
+    <PatchList>
+      <Line Type="bytes32" Address="0x00412345" Value="0x00000001"/>
+    </PatchList>
+  </Metadata>
+</Patch>
+```
 
 Cheats load from disk. If a file changes, OnionHEN reloads it without restarting the whole stack.
 
@@ -275,10 +315,15 @@ Most options can be changed in the Toolbox. The format is
 `schema_version=1`. If no file exists, OnionHEN writes a commented
 default from [`config.ini.example`](config.ini.example).
 
+The Custom PKG Installer stores folders as `pkg.search_path_0` through
+`pkg.search_path_7`. Installation progress is shown by the PS5 system
+installer. Firmware-specific package support still needs console validation.
+
 | Key | Default | Values |
 | --- | --- | --- |
 | `meta.schema_version` | `1` | `1` |
 | `toolbox.language` | `system` | `system`, `zh-Hans`, `zh-Hant`, `en`, `ja`, `ko`, `fr`, `de`, `it`, `es`, `pt-BR`, `pl`, `ru`, `ar`, `th` |
+| `pkg.search_path_count` / `pkg.search_path_N` | `1` / `/data/OnionHEN/pkgs` | Up to 8 absolute `/data` or `/mnt` folder paths |
 | `startup.open_after_load` | `none` | `none`, `home_menu` |
 | `home_screen.show_title_ids` | `false` | `true`, `false` |
 | `game_menu.show_onionhen_options` | `true` | `true`, `false` |
@@ -318,7 +363,7 @@ default from [`config.ini.example`](config.ini.example).
 
 | Tool | Purpose |
 | --- | --- |
-| [`scripts/daemon_log.py`](scripts/daemon_log.py) | Stream daemon logs from the console |
+| [`scripts/daemon_log.py`](scripts/daemon_log.py) | Stream daemon logs; use [`scripts/capture_klog.py`](scripts/capture_klog.py) to capture kernel logs |
 | [`scripts/shutdown_onion.py`](scripts/shutdown_onion.py) | Shut down the OnionHEN userland stack without killing `kstuff` |
 | [`scripts/ps5_cmake.sh`](scripts/ps5_cmake.sh) | Run CMake through the PS5 payload SDK |
 | [`scripts/sync_dependencies.sh`](scripts/sync_dependencies.sh) | Fetch or build external payload inputs |

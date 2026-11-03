@@ -190,6 +190,12 @@ OnionHEN/
 - 操作偏好（工具箱语言、手柄快捷键）
 - 高级调试 / 关于
 
+The Toolbox USB Payloads page scans ELF files at the root of `/usb0` through
+`/usb7` (falling back to `/mnt/usb0` through `/mnt/usb7`). It imports them into
+`/user/data/OnionHEN/payloads`. Each import uses a unique staging file in the
+destination directory. A new payload is installed without overwriting a file
+created concurrently; replacing an installed payload requires confirmation.
+
 Remote Play 由 `remote_play.cpp` 负责：通过 `libSceRemoteplay.sprx` 解析
 原生 `sceRemoteplay*` API，启用 Remote Play 注册表设置，生成 PIN，并在后台
 确认客户端注册。视频串流与客户端传输仍由 PS5 原生 Remote Play 服务处理；
@@ -365,6 +371,7 @@ struct IPCMessage {
 | `/data/OnionHEN/OnionHEN_crash.log` | daemon 崩溃信号与回溯日志；跨重启追加保留 |
 | `/data/OnionHEN/payloads/` | 用户 payload `.elf`（启动时 stage 到同目录） |
 | `/data/OnionHEN/plugins/` | OnionHEN plugin `.elf`（含 `.onion_plugin` descriptor） |
+| `pkg.search_path_0`…`pkg.search_path_7` | Custom PKG folders; ShellUI scans their `/user/data` or `/usb*` views and submits the system-visible paths to AppInstUtil |
 | `/system_tmp/onionhen/ipc/*` | Unix IPC socket |
 | `/system_tmp/onionhen/ready/<name>` | ready/runtime 标记；`toolbox` 内容为 SceShellUI PID |
 | `/system_tmp/onionhen/pid/<key>.PID` | 用户 Payload PID 状态 |
