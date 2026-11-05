@@ -13,6 +13,7 @@
 static char fixture[256];
 static bool loader_available;
 static bool interrupt_wait;
+static bool force_unknown_dtype;
 static unsigned int waits[16];
 static size_t wait_count, launch_count, event_count;
 static char events[32][64];
@@ -30,16 +31,23 @@ static DIR *fixture_opendir(const char *path) {
   return NULL;
 }
 
-static bool fixture_exists(const char *path) {
-  char local[512];
-  local_path(path, local, sizeof(local));
-  return access(local, F_OK) == 0;
+static struct dirent *fixture_readdir(DIR *dir) {
+  struct dirent *entry = readdir(dir);
+  if (entry && force_unknown_dtype)
+    entry->d_type = DT_UNKNOWN;
+  return entry;
 }
 
 static int fixture_stat(const char *path, struct stat *info) {
   char local[512];
   local_path(path, local, sizeof(local));
   return stat(local, info);
+}
+
+static int fixture_lstat(const char *path, struct stat *info) {
+  char local[512];
+  local_path(path, local, sizeof(local));
+  return lstat(local, info);
 }
 
 static bool fixture_config(const char *path, OnionPayloadConfig *config) {
@@ -89,8 +97,9 @@ static void fixture_notify(const char *key, ...) {
 
 /* Run the production scanner and loop against temporary files and a fake clock. */
 #define opendir fixture_opendir
-#define if_exists fixture_exists
+#define readdir fixture_readdir
 #define stat(path, info) fixture_stat(path, info)
+#define lstat(path, info) fixture_lstat(path, info)
 #define onion_payload_config_load fixture_config
 #define elfldr_remote_onion_available fixture_available
 #define onion_payload_running fixture_running
@@ -99,8 +108,9 @@ static void fixture_notify(const char *key, ...) {
 #define sleep fixture_sleep
 #include "../../bootstrapper/source/payload_autostart.c"
 #undef opendir
-#undef if_exists
+#undef readdir
 #undef stat
+#undef lstat
 #undef onion_payload_config_load
 #undef elfldr_remote_onion_available
 #undef onion_payload_running
@@ -175,6 +185,42 @@ static int test_autostart_schedule(void) {
   return 0;
 }
 
+static int test_autostart_unknown_dtype(void) {
+  snprintf(fixture, sizeof(fixture), "/tmp/onion-autostart-unknown-XXXXXX");
+  TEST_ASSERT_TRUE(mkdtemp(fixture) != NULL);
+  TEST_ASSERT_EQ_INT(0, add_payload("unknown.elf", 0, 0, true));
+
+  loader_available = true;
+  interrupt_wait = false;
+  force_unknown_dtype = true;
+  wait_count = launch_count = event_count = 0;
+  failures_notified = invalid_launches = 0;
+  bootstrap_payload_autostart();
+  force_unknown_dtype = false;
+
+  TEST_ASSERT_EQ_INT(1, (int)launch_count);
+  TEST_ASSERT_EQ_INT(0, (int)invalid_launches);
+  TEST_ASSERT_EQ_INT(1, (int)event_count);
+  TEST_ASSERT_STREQ("load:unknown.elf", events[0]);
+
+  DIR *dir = opendir(fixture);
+  TEST_ASSERT_TRUE(dir != NULL);
+  struct dirent *entry;
+  while ((entry = readdir(dir)) != NULL) {
+    if (entry->d_name[0] == '.')
+      continue;
+    char path[512];
+    local_path(entry->d_name, path, sizeof(path));
+    unlink(path);
+  }
+  closedir(dir);
+  TEST_ASSERT_EQ_INT(0, rmdir(fixture));
+  return 0;
+}
+
 int test_payload_autostart_suite(void) {
-  return onion_test_run("payload.autostart_schedule", test_autostart_schedule);
+  int result = onion_test_run("payload.autostart_schedule", test_autostart_schedule);
+  result |= onion_test_run("payload.autostart_unknown_dtype",
+                           test_autostart_unknown_dtype);
+  return result;
 }
